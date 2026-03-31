@@ -3,54 +3,29 @@ import pandas as pd
 from sqlalchemy import text
 from datetime import datetime
 
-# 1. 페이지 설정 및 디자인 테마 적용
-st.set_page_config(page_title="Library Dashboard", page_icon="✨", layout="wide")
+# 1. 페이지 설정
+st.set_page_config(page_title="Library Pro Dashboard", page_icon="✨", layout="wide")
 
-# 고해상도 디자인을 위한 커스텀 CSS (최신 트렌드 반영)
+# 디자인 보정 CSS
 st.markdown("""
     <style>
-    /* 전체 배경 및 폰트 */
-    .main {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        font-family: 'Pretendard', -apple-system, sans-serif;
+    /* 메트릭 카드 높이 통일 및 디자인 */
+    [data-testid="stMetric"] {
+        background-color: rgba(255, 255, 255, 0.8) !important;
+        border-radius: 12px !important;
+        padding: 15px 20px !important;
+        border: 1px solid #e0e0e0 !important;
+        min-height: 120px; /* 높이 고정 */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
-    
-    /* 카드 스타일 (글래스모피즘 느낌) */
-    div[data-testid="stMetric"] {
-        background-color: rgba(255, 255, 255, 0.8);
-        border-radius: 15px;
-        padding: 20px;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
-        backdrop-filter: blur(4px);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-    }
-
-    /* 버튼 스타일 커스텀 */
-    .stButton>button {
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        border: none;
-    }
-    
-    .stButton>button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    }
-
-    /* 상태별 배지 스타일 */
-    .status-badge {
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    .status-available { background-color: #e1f5fe; color: #01579b; }
-    .status-rented { background-color: #fff3e0; color: #e65100; }
-    .status-lost { background-color: #ffebee; color: #b71c1c; }
+    .main { background-color: #f0f2f6; }
+    .stButton>button { border-radius: 6px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. DB 연결 및 데이터 함수
+# 2. DB 연결 함수
 conn = st.connection("supabase", type="sql")
 
 def get_data():
@@ -61,100 +36,90 @@ def run_query(query, params=None):
         s.execute(text(query), params)
         s.commit()
 
-# --- 사이드바 네비게이션 ---
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3389/3389081.png", width=100)
-    st.title("Library Admin")
-    st.markdown("---")
-    menu = st.radio("Menu", ["📊 Dashboard", "📚 Book Inventory", "➕ Register New"])
-    st.markdown("---")
-    st.caption("v2.1.0 Beta - Updated 2026")
+# --- 도서 수정 팝업 함수 (Streamlit 최신 기능: dialog) ---
+@st.dialog("도서 정보 수정")
+def edit_book_dialog(book):
+    st.write(f"ID: {book['id']}번 도서를 수정합니다.")
+    new_title = st.text_input("도서명", value=book['title'])
+    new_author = st.text_input("저자", value=book['author'])
+    new_status = st.selectbox("상태", ["대출가능", "대출중", "분실"], 
+                               index=["대출가능", "대출중", "분실"].index(book['status']))
+    
+    if st.button("수정 내용 저장", use_container_width=True):
+        query = "UPDATE books SET title = :t, author = :a, status = :s, updated_at = NOW() WHERE id = :id"
+        run_query(query, {"t": new_title, "a": new_author, "s": new_status, "id": book['id']})
+        st.success("수정되었습니다!")
+        st.rerun()
 
+# --- 데이터 로드 ---
 df = get_data()
 
-# --- 1. Dashboard (메인 지표 및 통계) ---
+# --- 사이드바 네비게이션 ---
+with st.sidebar:
+    st.title("📚 Library Admin")
+    menu = st.radio("Menu", ["📊 Dashboard", "📚 Inventory Management", "➕ Quick Register"])
+    st.divider()
+    st.caption(f"Last Sync: {datetime.now().strftime('%H:%M:%S')}")
+
+# --- 1. Dashboard (상단 카드 높이 통일 버전) ---
 if menu == "📊 Dashboard":
     st.title("System Overview")
     
-    # 상단 지표 카드
+    # 상단 4개 카드 (CSS로 min-height를 설정하여 높이 통일)
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Books", len(df))
-    m2.metric("Rented", len(df[df['status'] == '대출중']), delta="Check-out")
-    m3.metric("Available", len(df[df['status'] == '대출가능']), delta_color="normal")
-    m4.metric("Issues", len(df[df['status'] == '분실']), delta="- Alert")
+    m1.metric("Total Books", f"{len(df)}권")
+    m2.metric("On Loan", f"{len(df[df['status'] == '대출중'])}권", delta="Checking...")
+    m3.metric("Available", f"{len(df[df['status'] == '대출가능'])}권")
+    m4.metric("Issues", f"{len(df[df['status'] == '분실'])}건", delta="- Critical", delta_color="inverse")
 
-    st.markdown("### 📈 Rental Insights")
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        # 간단한 막대 그래프 (상태별)
-        st.bar_chart(df['status'].value_counts(), color="#4A90E2")
-    with c2:
-        # 도넛 차트 느낌의 원형 그래프
-        st.write("Status Proportion")
-        st.scatter_chart(df['status'].value_counts()) # 최신 Streamlit은 scatter_chart로도 시각화 가능
-
-# --- 2. Book Inventory (목록 및 관리) ---
-elif menu == "📚 Book Inventory":
-    st.title("Book Inventory")
+    st.divider()
     
-    # 상단 검색 및 필터 바
-    search_col, filter_col = st.columns([3, 1])
-    with search_col:
-        search = st.text_input("", placeholder="Search by title or author...", label_visibility="collapsed")
-    with filter_col:
-        f_status = st.selectbox("Status Filter", ["All", "대출가능", "대출중", "분실"], label_visibility="collapsed")
+    col_chart, col_recent = st.columns([2, 1])
+    with col_chart:
+        st.subheader("Rental Status Distribution")
+        st.bar_chart(df['status'].value_counts(), color="#4A90E2")
+    with col_recent:
+        st.subheader("Latest Arrivals")
+        st.table(df[['title', 'author']].head(5))
 
+# --- 2. Inventory Management (전체 수정 기능 추가) ---
+elif menu == "📚 Inventory Management":
+    st.title("Inventory Management")
+    
+    search = st.text_input("🔍 도서명 또는 저자로 검색", placeholder="검색어를 입력하고 엔터를 누르세요.")
+    
     filtered_df = df.copy()
     if search:
-        filtered_df = filtered_df[filtered_df['title'].str.contains(search, case=False) | filtered_df['author'].str.contains(search, case=False)]
-    if f_status != "All":
-        filtered_df = filtered_df[filtered_df['status'] == f_status]
+        filtered_df = filtered_df[filtered_df['title'].str.contains(search, case=False) | 
+                                  filtered_df['author'].str.contains(search, case=False)]
 
-    # 목록 UI (Clean Card Style)
     for _, row in filtered_df.iterrows():
-        # 상태에 따른 색상 클래스 결정
-        status_class = "status-available" if row['status'] == '대출가능' else "status-rented" if row['status'] == '대출중' else "status-lost"
-        
         with st.container(border=True):
-            col_info, col_action = st.columns([4, 1])
-            with col_info:
-                st.markdown(f"""
-                    <span class="status-badge {status_class}">{row['status']}</span>
-                    <h3 style='margin-top: 10px;'>{row['title']}</h3>
-                    <p style='color: #666;'>저자: {row['author']} | 등록 ID: {row['id']}</p>
-                """, unsafe_allow_html=True)
-            
-            with col_action:
-                new_s = st.selectbox("Update Status", ["대출가능", "대출중", "분실"], 
-                                   index=["대출가능", "대출중", "분실"].index(row['status']), 
-                                   key=f"s_{row['id']}")
-                if new_s != row['status']:
-                    run_query("UPDATE books SET status = :s WHERE id = :id", {"s": new_s, "id": row['id']})
-                    st.rerun()
-                
-                if st.button("Delete", key=f"d_{row['id']}", use_container_width=True):
+            c1, c2, c3 = st.columns([3, 1, 1])
+            with c1:
+                st.markdown(f"**{row['title']}**")
+                st.caption(f"Author: {row['author']} | Status: {row['status']}")
+            with c2:
+                # 수정 버튼: 클릭 시 다이얼로그(팝업) 실행
+                if st.button("📝 수정", key=f"edit_{row['id']}", use_container_width=True):
+                    edit_book_dialog(row)
+            with c3:
+                # 삭제 버튼
+                if st.button("🗑️ 삭제", key=f"del_{row['id']}", use_container_width=True):
                     run_query("DELETE FROM books WHERE id = :id", {"id": row['id']})
                     st.rerun()
 
-# --- 3. Register New (등록 양식) ---
-elif menu == "➕ Register New":
-    st.title("Register New Book")
-    with st.container(border=True):
-        st.subheader("Book Details")
-        with st.form("add_form", border=False):
-            t = st.text_input("Title", placeholder="Enter book title")
-            a = st.text_input("Author", placeholder="Enter author name")
-            col_l, col_r = st.columns(2)
-            with col_l:
-                s = st.selectbox("Initial Status", ["대출가능", "대출중"])
-            with col_r:
-                st.write("") # 간격 맞춤용
-            
-            submitted = st.form_submit_button("Confirm Registration", use_container_width=True)
-            if submitted:
-                if t:
-                    run_query("INSERT INTO books (title, author, status) VALUES (:t, :a, :s)", 
-                              {"t": t, "a": a, "s": s})
-                    st.success(f"Successfully registered: {t}")
-                else:
-                    st.error("Title is required.")
+# --- 3. Quick Register ---
+elif menu == "➕ Quick Register":
+    st.title("Add New Resource")
+    with st.form("reg_form", clear_on_submit=True):
+        t = st.text_input("Title *")
+        a = st.text_input("Author")
+        s = st.selectbox("Status", ["대출가능", "대출중"])
+        if st.form_submit_button("Register Book", use_container_width=True):
+            if t:
+                run_query("INSERT INTO books (title, author, status) VALUES (:t, :a, :s)", 
+                          {"t": t, "a": a, "s": s})
+                st.success("새 도서가 등록되었습니다.")
+            else:
+                st.error("도서 제목은 필수입니다.")
