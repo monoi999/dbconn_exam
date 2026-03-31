@@ -9,19 +9,31 @@ st.set_page_config(page_title="Library Pro Dashboard", page_icon="✨", layout="
 # 디자인 보정 CSS
 st.markdown("""
     <style>
-    /* 메트릭 카드 높이 통일 및 디자인 */
+    /* 모든 메트릭 카드의 컨테이너 선택 */
     [data-testid="stMetric"] {
         background-color: rgba(255, 255, 255, 0.8) !important;
         border-radius: 12px !important;
         padding: 15px 20px !important;
         border: 1px solid #e0e0e0 !important;
-        min-height: 120px; /* 높이 고정 */
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
+        
+        /* 높이 고정 및 중앙 정렬 핵심 설정 */
+        min-height: 150px !important; 
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
     }
-    .main { background-color: #f0f2f6; }
-    .stButton>button { border-radius: 6px; }
+    
+    /* 메트릭 내부의 라벨(제목) 스타일 */
+    [data-testid="stMetricLabel"] {
+        font-size: 1rem !important;
+        font-weight: 600 !important;
+        color: #555 !important;
+    }
+
+    /* 메트릭 내부의 값(숫자) 스타일 */
+    [data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -63,7 +75,7 @@ with st.sidebar:
 
 # --- 1. Dashboard (상단 카드 높이 통일 버전) ---
 if menu == "📊 Dashboard":
-    st.title("System Overview")
+    st.title("BOOK Dashboard")
     
     # 상단 4개 카드 (CSS로 min-height를 설정하여 높이 통일)
     m1, m2, m3, m4 = st.columns(4)
