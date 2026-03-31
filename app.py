@@ -11,7 +11,7 @@ conn = st.connection("supabase", type="sql")
 # --- 헬퍼 함수 정의 ---
 def get_all_books():
     """R: 모든 도서 조회"""
-    return conn.query(text("SELECT * FROM books ORDER BY id DESC;"), ttl=0)
+    return conn.query("SELECT * FROM books ORDER BY id DESC;", ttl=0)
 
 def add_book(title, author):
     """C: 도서 추가"""
