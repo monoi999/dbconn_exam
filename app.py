@@ -1,5 +1,4 @@
 import streamlit as st
-from sqlalchemy import create_engine, text
 
 # 페이지 설정
 st.set_page_config(page_title="SQL DB 대시보드", page_icon="💾")
@@ -21,8 +20,8 @@ with st.form("log_form", clear_on_submit=True):
         if name and content:
             with conn.session as session:
                 # SQLAlchemy 문법을 사용하여 데이터 삽입
-                session.execute(text(
-                    "INSERT INTO user_logs (user_name, note) VALUES (:name, :note);"),
+                session.execute(
+                    "INSERT INTO user_logs (user_name, note) VALUES (:name, :note);",
                     params=dict(name=name, note=content)
                 )
                 session.commit()
